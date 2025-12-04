@@ -1,12 +1,7 @@
 // config/firebaseConfig.js
 import { initializeApp } from "firebase/app";
-import {
-  initializeAuth,
-  getReactNativePersistence,
-  onAuthStateChanged,
-  signInAnonymously
-} from "firebase/auth";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { initializeAuth, getReactNativePersistence, signInWithEmailAndPassword } from "firebase/auth";
+import ReactNativeAsyncStorage from "@react-native-async-storage/async-storage";
 import { getFirestore } from "firebase/firestore";
 
 // 🔥 REPLACE THESE VALUES WITH YOURS FROM FIREBASE CONSOLE
@@ -21,23 +16,19 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 
-// ✅ Auth that persists across app restarts
+
 const auth = initializeAuth(app, {
-  persistence: getReactNativePersistence(AsyncStorage),
+  persistence: getReactNativePersistence(ReactNativeAsyncStorage),
 });
 
-// ✅ Firestore database
 const db = getFirestore(app);
 
-// ✅ Auto Anonymous Login
-export function initAuth(onReady) {
-  onAuthStateChanged(auth, (user) => {
-    if (!user) {
-      signInAnonymously(auth);
-    } else {
-      onReady(user.uid);
-    }
-  });
+export async function initAuth(setUserId) {
+  const email = "mayank@trolley.com";
+  const password = "mayank8989";
+
+  const userCredential = await signInWithEmailAndPassword(auth, email, password);
+  setUserId(userCredential.user.uid);
 }
 
 export { auth, db };

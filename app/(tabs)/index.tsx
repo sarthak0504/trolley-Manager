@@ -22,11 +22,13 @@ export default function ClientsScreen() {
   const [modalVisible, setModalVisible] = useState(false);
   const [clientToEdit, setClientToEdit] = useState(null);
 
+  // ✅ Safely calculate total pending
   const totalPending = clients.reduce(
     (sum, c) => sum + (c.pendingAmount || 0),
     0
   );
 
+  // --- Modal handlers
   const handleOpenModal = (client = null) => {
     setClientToEdit(client);
     setModalVisible(true);
@@ -48,6 +50,7 @@ export default function ClientsScreen() {
     handleCloseModal();
   };
 
+  // --- Action Handlers
   const handleCall = async (phone) => {
     if (!phone) return Alert.alert("No Phone", "Client has no phone number.");
     const url = `tel:${phone}`;
@@ -87,6 +90,7 @@ export default function ClientsScreen() {
     );
   };
 
+  // --- Render Client Item
   const renderClient = ({ item }) => {
     const trolleyNos =
       item.activeRentals?.length > 0
@@ -117,7 +121,6 @@ export default function ClientsScreen() {
           </TouchableOpacity>
         </Link>
 
-        {/* More Options */}
         <TouchableOpacity
           onPress={() => handleClientActions(item)}
           style={styles.optionsButton}
@@ -173,8 +176,10 @@ const styles = StyleSheet.create({
     backgroundColor: "#f4f5f7",
   },
   listContent: {
-    padding: 12,
+    paddingHorizontal: 12,
+    paddingTop: 10,
     paddingBottom: 80,
+    flexGrow: 1, // ✅ ensures scrollability
   },
   summaryBox: {
     backgroundColor: "#fee2e2",
@@ -207,7 +212,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     borderWidth: 0.5,
     borderColor: "#ddd",
-    marginBottom: 5, // ✅ small gap only
+    marginBottom: 5, // ✅ minimal gap
     padding: 10,
   },
   optionsButton: {
@@ -221,18 +226,18 @@ const styles = StyleSheet.create({
   },
   clientPhone: {
     color: "#007AFF",
-    fontSize: 14,
+    fontSize: 13,
     marginBottom: 2,
   },
   clientDetail: {
-    color: "#444",
+    color: "#555",
     fontSize: 13,
   },
   clientPending: {
     color: "red",
     fontSize: 14,
     marginTop: 2,
-    fontWeight: "bold",
+    fontWeight: "600",
   },
   emptyText: {
     textAlign: "center",

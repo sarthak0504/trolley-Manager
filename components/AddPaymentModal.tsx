@@ -1,38 +1,119 @@
-import React, { useState } from "react";
-import { Modal, View, Text, TextInput, Button } from "react-native";
+import React, { useState, useEffect } from "react";
+import {
+  Modal,
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+} from "react-native";
 
-export default function AddPaymentModal({ visible, onClose, onAdd }) {
+export default function AddPaymentModal({
+  visible,
+  onClose,
+  onSave,
+  paymentToEdit,
+}) {
   const [amount, setAmount] = useState("");
+  const [notes, setNotes] = useState("");
 
-  function submit() {
+  useEffect(() => {
+    if (paymentToEdit) {
+      setAmount(paymentToEdit.amount?.toString() || "");
+      setNotes(paymentToEdit.notes || "");
+    } else {
+      setAmount("");
+      setNotes("");
+    }
+  }, [paymentToEdit, visible]);
+
+  const handleSave = () => {
     if (!amount) return;
-    onAdd({
-      id: Date.now().toString(),
+    onSave({
+      id: paymentToEdit?.id, // ✅ preserve id when editing
       amount: Number(amount),
-      date: new Date().toLocaleDateString(),
+      notes,
     });
-    setAmount("");
-    onClose();
-  }
+  };
 
   return (
-    <Modal visible={visible} animationType="slide">
-      <View style={{ flex:1, padding:20 }}>
-        <Text style={{ fontSize:22, fontWeight:"bold", marginBottom:10 }}>Add Payment</Text>
+    <Modal visible={visible} transparent animationType="slide">
+      <View style={styles.overlay}>
+        <View style={styles.modalBox}>
+          <Text style={styles.title}>
+            {paymentToEdit ? "Edit Payment" : "Add Payment"}
+          </Text>
 
-        <TextInput
-          placeholder="Amount Paid (₹)"
-          keyboardType="numeric"
-          value={amount}
-          onChangeText={setAmount}
-          style={{ borderWidth:1, padding:8, borderRadius:6, marginBottom:20 }}
-        />
+          <TextInput
+            placeholder="Amount (₹)"
+            value={amount}
+            onChangeText={setAmount}
+            keyboardType="numeric"
+            style={styles.input}
+          />
 
-        <Button title="Add Payment" onPress={submit} />
-        <View style={{ marginTop:10 }}>
-          <Button title="Cancel" color="red" onPress={onClose} />
+          <TextInput
+            placeholder="Notes (optional)"
+            value={notes}
+            onChangeText={setNotes}
+            style={[styles.input, { height: 80 }]}
+            multiline
+          />
+
+          <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
+            <Text style={styles.saveButtonText}>
+              {paymentToEdit ? "Save Changes" : "Add Payment"}
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity onPress={onClose}>
+            <Text style={styles.cancelText}>Cancel</Text>
+          </TouchableOpacity>
         </View>
       </View>
     </Modal>
   );
 }
+
+const styles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalBox: {
+    backgroundColor: "#fff",
+    borderRadius: 10,
+    padding: 20,
+    width: "85%",
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: "bold",
+    marginBottom: 10,
+    textAlign: "center",
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: "#ccc",
+    borderRadius: 6,
+    padding: 10,
+    marginBottom: 10,
+  },
+  saveButton: {
+    backgroundColor: "green",
+    padding: 12,
+    borderRadius: 6,
+    alignItems: "center",
+  },
+  saveButtonText: {
+    color: "#fff",
+    fontWeight: "bold",
+  },
+  cancelText: {
+    color: "red",
+    textAlign: "center",
+    marginTop: 10,
+  },
+});

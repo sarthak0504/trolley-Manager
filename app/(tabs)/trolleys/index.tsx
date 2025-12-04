@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { View, Text, FlatList, TouchableOpacity, Button, TextInput } from "react-native";
-import { useTrolleys } from "../../store/TrolleyStore";
+import { useTrolleys } from "../../../store/TrolleyStore";
 import { Link } from "expo-router";
 
 export default function TrolleysScreen() {
@@ -61,19 +61,7 @@ export default function TrolleysScreen() {
                 <Text>Currently rented by: {item.currentClient}</Text>
               )}
 
-              <TouchableOpacity
-                onPress={() => toggleAvailability(item.id)}
-                style={{
-                  marginTop: 8,
-                  backgroundColor: item.isAvailable ? "orange" : "green",
-                  padding: 8,
-                  borderRadius: 6,
-                }}
-              >
-                <Text style={{ color: "#fff", textAlign: "center" }}>
-                  {item.isAvailable ? "Mark as Unavailable" : "Mark as Available"}
-                </Text>
-              </TouchableOpacity>
+          
             </TouchableOpacity>
           </Link>
         )}
