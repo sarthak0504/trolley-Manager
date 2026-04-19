@@ -46,6 +46,7 @@ const getInitialFormState = () => ({
   jamamnatDaar: "",
   jamanatPhone: "",
   advance: "",
+  rentalEdited: false,
 });
 
 export default function AddClientModal({
@@ -77,10 +78,11 @@ export default function AddClientModal({
           email: clientToEdit.email || "",
           jamamnatDaar: clientToEdit.jamamnatDaar || "",
           jamanatPhone: clientToEdit.jamanatPhone || "",
-          advance: String(clientToEdit.advance || 0),
+          advance: String(clientToEdit.initialAdvance || 0), // initial advance only
           trolleyNo: rental.trolleyNo || "",
           monthlyRent: String(rental.monthlyRent || ""),
           rentStartDate: rental.startDate || "",
+          rentalEdited: false,
         });
       } else {
         setForm(getInitialFormState());
@@ -88,62 +90,93 @@ export default function AddClientModal({
     }
   }, [visible, clientToEdit]);
 
-  const update = (key, value) => setForm({ ...form, [key]: value });
+  const update = (key, value) =>
+    setForm((prev) => ({
+      ...prev,
+      [key]: value,
+      ...(key === "monthlyRent" || key === "rentStartDate"
+        ? { rentalEdited: true }
+        : {}),
+    }));
 
   // --- Submit ---
-  const handleSubmit = async () => {
-    if (loading) return;
+const handleSubmit = async () => {
+  if (loading) return;
 
-    if (!form.name || !form.trolleyNo || !form.monthlyRent || !form.rentStartDate) {
-      Alert.alert(
-        "Validation Error",
-        "Please fill all required fields: Name, Trolley, Rent, Start Date."
-      );
-      return;
-    }
+  if (!form.name || !form.trolleyNo || !form.monthlyRent || !form.rentStartDate) {
+    Alert.alert("Validation Error", "Fill all required fields.");
+    return;
+  }
 
-    setLoading(true);
+  setLoading(true);
 
-    const monthlyRent = Number(form.monthlyRent);
-    const advance = Number(form.advance) || 0;
+  const monthlyRent = Number(form.monthlyRent);
+  const advance = Number(form.advance) || 0;
 
-    const rental = {
-      trolleyNo: form.trolleyNo,
-      monthlyRent,
-      startDate: form.rentStartDate,
-      pending: monthlyRent,
-    };
-
-    const payload = {
-      name: form.name.trim(),
-      phone: form.phone || null,
-      address: form.address || null,
-      email: form.email || null,
-      jamamnatDaar: form.jamamnatDaar || null,
-      jamanatPhone: form.jamanatPhone || null,
-      advance,
-      pendingAmount: form.pendingAmount || 0,
-      totalPaidAmount: form.totalPaidAmount || 0,
-      initialAdvance: form.initialAdvance || advance,
-      activeRentals: isEditing
-        ? clientToEdit.activeRentals.map((r) =>
-            r.trolleyNo === rental.trolleyNo ? rental : r
-          )
-        : [rental],
-      ...(isEditing && { id: clientToEdit.id }),
-    };
-
-    try {
-      await axios.post(SHEET_URL, payload);
-      onAdd(payload);
-      onClose();
-    } catch (err) {
-      console.error("Sheet error:", err);
-      Alert.alert("Error", "Failed to save client.");
-    } finally {
-      setLoading(false);
-    }
+  // ------ BASE PAYLOAD ------
+  let payload = {
+    name: form.name.trim(),
+    phone: form.phone || null,
+    address: form.address || null,
+    email: form.email || null,
+    jamamnatDaar: form.jamamnatDaar || null,
+    jamanatPhone: form.jamanatPhone || null,
   };
+
+  // Add ID only when editing
+  if (isEditing) {
+    payload.id = form.id;
+  }
+
+  // --------------------------------------------------------
+  // 🔵 EDIT CLIENT — preserve existing pending, due date, etc.
+  // --------------------------------------------------------
+  if (isEditing) {
+    if (form.rentalEdited) {
+      const oldRental = clientToEdit.activeRentals[0];
+
+      payload.activeRentals = [
+        {
+          ...oldRental,                     // keep: pending, nextRentDueDate, returnedLastDueDate
+          monthlyRent,                      // update rent
+          startDate: form.rentStartDate,    // update date
+        }
+      ];
+    }
+  }
+
+  // --------------------------------------------------------
+  // 🟢 ADD NEW CLIENT
+  // --------------------------------------------------------
+  else {
+    payload.advance = advance;
+    payload.initialAdvance = advance;
+
+    payload.activeRentals = [
+      {
+        trolleyNo: form.trolleyNo,
+        monthlyRent,
+        startDate: form.rentStartDate,
+        pending: monthlyRent,     // first pending = rent
+        nextRentDueDate: null,
+      }
+    ];
+  }
+
+  // ------ SEND TO GOOGLE SHEET ------
+  try {
+    await axios.post(SHEET_URL, payload);
+    onAdd(payload);
+    onClose();
+  } catch (err) {
+    console.log("Save error:", err);
+    Alert.alert("Error", "Failed to save client.");
+  } finally {
+    setLoading(false);
+  }
+};
+
+
 
   const inputStyle = {
     borderWidth: 1,
@@ -158,7 +191,7 @@ export default function AddClientModal({
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
         <Text style={styles.title}>
-          {isEditing ? "📝 Edit Client Details" : "➕ Add New Client"}
+          {isEditing ? "📝 Edit Client" : "➕ Add New Client"}
         </Text>
 
         {/* Name */}
@@ -175,15 +208,16 @@ export default function AddClientModal({
           selectedValue={form.trolleyNo}
           onValueChange={(v) => update("trolleyNo", v)}
           style={styles.picker}
-          enabled={!isEditing}
+          enabled={!isEditing} // 🚫 LOCKED WHEN EDITING
         >
           <Picker.Item
             label={isEditing ? form.trolleyNo : "Select Trolley"}
             value={form.trolleyNo}
           />
-          {availableTrolleys.map((t) => (
-            <Picker.Item key={t.id} label={t.id} value={t.id} />
-          ))}
+          {!isEditing &&
+            availableTrolleys.map((t) => (
+              <Picker.Item key={t.id} label={t.id} value={t.id} />
+            ))}
         </Picker>
 
         {/* Monthly Rent */}
@@ -218,7 +252,7 @@ export default function AddClientModal({
           />
         )}
 
-        {/* Optional */}
+        {/* Optional Fields */}
         <Text style={styles.sectionHeader}>Optional Details</Text>
 
         <TextInput
@@ -246,7 +280,7 @@ export default function AddClientModal({
         />
 
         {/* Guarantor */}
-        <Text style={styles.sectionHeader}>Guarantor Details</Text>
+        <Text style={styles.sectionHeader}>Guarantor</Text>
 
         <TextInput
           placeholder="Jamamnat Daar"
@@ -264,16 +298,17 @@ export default function AddClientModal({
         />
 
         {/* Advance */}
-        <TextInput
-          placeholder="Advance Payment (₹)"
-          value={form.advance}
-          keyboardType="numeric"
-          onChangeText={(v) => update("advance", v)}
-          editable={!isEditing}
-          style={[inputStyle, isEditing && { backgroundColor: "#e9ecef" }]}
-        />
+        {!isEditing && (
+          <TextInput
+            placeholder="Advance Payment (₹)"
+            value={form.advance}
+            keyboardType="numeric"
+            onChangeText={(v) => update("advance", v)}
+            style={inputStyle}
+          />
+        )}
 
-        {/* Submit Button */}
+        {/* Submit */}
         <TouchableOpacity
           onPress={handleSubmit}
           disabled={loading}
@@ -307,6 +342,7 @@ export default function AddClientModal({
     </Modal>
   );
 }
+
 
 // --- Styles ---
 const styles = StyleSheet.create({

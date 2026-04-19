@@ -7,6 +7,7 @@ import {
   Linking,
   Alert,
   StyleSheet,
+  TextInput,
 } from "react-native";
 import { Link } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -21,12 +22,33 @@ export default function ClientsScreen() {
 
   const [modalVisible, setModalVisible] = useState(false);
   const [clientToEdit, setClientToEdit] = useState(null);
+  const [searchText, setSearchText] = useState("");
 
   // ✅ Safely calculate total pending
   const totalPending = clients.reduce(
     (sum, c) => sum + (c.pendingAmount || 0),
-    0
+    0,
   );
+  const filteredClients = clients.filter((client) => {
+    const search = searchText.toLowerCase();
+
+    const name = client.name?.toLowerCase() || "";
+    const phone = client.phone?.toLowerCase() || "";
+
+    const trolleyNos =
+      client.activeRentals
+        ?.map((r) => r.trolleyNo)
+        .join(" ")
+        .toLowerCase() ||
+      client.trolleyNo?.toLowerCase() ||
+      "";
+
+    return (
+      name.includes(search) ||
+      phone.includes(search) ||
+      trolleyNos.includes(search)
+    );
+  });
 
   // --- Modal handlers
   const handleOpenModal = (client = null) => {
@@ -83,10 +105,10 @@ export default function ClientsScreen() {
                   style: "destructive",
                   onPress: () => deleteClient(client.id),
                 },
-              ]
+              ],
             ),
         },
-      ]
+      ],
     );
   };
 
@@ -134,7 +156,7 @@ export default function ClientsScreen() {
   return (
     <View style={styles.container}>
       <FlatList
-        data={clients}
+        data={filteredClients}
         keyExtractor={(item, index) => item.id || `client-${index}`}
         renderItem={renderClient}
         showsVerticalScrollIndicator={false}
@@ -153,6 +175,13 @@ export default function ClientsScreen() {
             >
               <Text style={styles.addButtonText}>＋ ADD CLIENT</Text>
             </TouchableOpacity>
+
+            <TextInput
+              placeholder="Search by name, phone, or trolley"
+              value={searchText}
+              onChangeText={setSearchText}
+              style={styles.searchInput}
+            />
           </>
         }
         ListEmptyComponent={

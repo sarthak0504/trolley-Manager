@@ -31,59 +31,90 @@ export default function RentToClientScreen() {
     );
   }
 
-  async function addRental() {
-    if (!trolleyNo || !monthlyRent || !startDate) {
-      alert("All fields are required.");
-      return;
-    }
-
-    const newRental = {
-      trolleyNo,
-      monthlyRent: Number(monthlyRent),
-      startDate,
-      nextRentDueDate: (() => {
-        const d = new Date(startDate);
-        d.setMonth(d.getMonth() + 1);
-        return d.toISOString().split("T")[0];
-      })(),
-    };
-
-    const updatedClient = {
-      ...client,
-      activeRentals: [...(client.activeRentals || []), newRental],
-      pendingAmount: (client.pendingAmount || 0) + Number(monthlyRent), // add first month's rent
-    };
-
-    // ✅ Update client Firestore
-    await updateDoc(
-      doc(db, userCollectionPath(client.userId, "clients"), client.id),
-      updatedClient
-    );
-
-    // ✅ Mark trolley unavailable
-    await updateDoc(
-      doc(db, userCollectionPath(client.userId, "trolleys"), trolleyNo),
-      {
-        isAvailable: false,
-        currentClient: client.name,
-        history: [
-          ...(trolleys.find((t) => t.id === trolleyNo)?.history || []),
-          {
-            action: "Rented (Extra)",
-            clientName: client.name,
-            date: new Date().toISOString().split("T")[0],
-          },
-        ],
-      }
-    );
-
-    // ✅ Update UI state immediately
-    setClients((prev) =>
-      prev.map((c) => (c.id === client.id ? updatedClient : c))
-    );
-
-    router.back();
+async function addRental() {
+  if (!trolleyNo || !monthlyRent || !startDate) {
+    alert("All fields are required.");
+    return;
   }
+
+  // Convert YYYY-MM-DD → DD-MM-YYYY
+  const [year, month, day] = startDate.split("-");
+  const formattedStart = `${day}-${month}-${year}`;
+
+  const rent = Number(monthlyRent);
+  const start = new Date(startDate);
+  const today = new Date();
+
+  // Calculate cycles passed
+  const diffDays = Math.floor((today - start) / (1000 * 60 * 60 * 24));
+  const cycles = diffDays >= 30 ? Math.floor(diffDays / 30) + 1 : 1;
+
+  let pending = 0;
+  let advance = client.advance || client.initialAdvance || 0;
+
+  // Prepaid logic
+  for (let i = 0; i < cycles; i++) {
+    if (advance >= rent) {
+      advance -= rent;
+    } else {
+      pending += (rent - advance);
+      advance = 0;
+    }
+  }
+
+  const nextDue = new Date(start);
+  nextDue.setDate(start.getDate() + cycles * 30);
+
+  const newRental = {
+    trolleyNo,
+    monthlyRent: rent,
+    startDate: formattedStart,
+    pending,
+    nextRentDueDate: `${String(nextDue.getDate()).padStart(2, "0")}-${String(nextDue.getMonth() + 1).padStart(2, "0")}-${nextDue.getFullYear()}`,
+    lastRentAddedOn: formattedStart,
+  };
+
+  const updatedClient = {
+    ...client,
+    activeRentals: [...(client.activeRentals || []), newRental],
+    pendingAmount: (client.pendingAmount || 0) + pending,
+    advance,
+    initialAdvance: client.initialAdvance,
+  };
+
+  // Firestore update
+  await updateDoc(
+    doc(db, userCollectionPath(client.userId, "clients"), client.id),
+    updatedClient
+  );
+
+  // Update trolley
+  await updateDoc(
+    doc(db, userCollectionPath(client.userId, "trolleys"), trolleyNo),
+    {
+      isAvailable: false,
+      currentClient: client.name,
+      history: [
+        ...(trolleys.find(t => t.id === trolleyNo)?.history || []),
+        {
+          action: "Rented (Extra)",
+          clientName: client.name,
+          clientId: client.id,
+          fromDate: formattedStart,
+          toDate: null,
+        }
+      ],
+    }
+  );
+
+  // Update UI immediately
+  setClients(prev =>
+    prev.map(c => (c.id === client.id ? updatedClient : c))
+  );
+
+  router.back();
+}
+
 
   return (
     <ScrollView style={{ flex: 1, padding: 20 }}>

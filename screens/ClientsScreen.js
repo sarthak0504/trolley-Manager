@@ -39,8 +39,18 @@ export default function ClientsScreen() {
 
   const handleSaveClient = (details) => {
     if (details.id) {
-      updateClient(details.id, details);
-    } else {
+  const safeDetails = { ...details };
+
+  // ❌ Remove rental fields unless user changed them
+  if (!details.rentalEdited) {
+    delete safeDetails.activeRentals;
+    delete safeDetails.monthlyRent;
+    delete safeDetails.startDate;
+  }
+
+  updateClient(details.id, safeDetails);
+}
+ else {
       addClient(details);
       if (details.trolleyNo)
         assignTrolley(details.trolleyNo, details.id, details.name);

@@ -363,19 +363,45 @@ export default function ClientDetailsScreen() {
               </View>
           )}
 
-          <Text style={{ fontWeight: "bold", fontSize: 18, marginBottom: 8 }}>Active Rentals</Text>
-          {client.activeRentals?.length ? (
-              client.activeRentals.map((r) => (
-              <View key={r.trolleyNo} style={{ backgroundColor: "#f9fafb", padding: 10, borderRadius: 8, marginBottom: 10, borderLeftWidth: 5, borderLeftColor: "orange" }}>
-                  <Text style={{ fontWeight: "bold" }}>🛒 Trolley: {r.trolleyNo}</Text>
-                  <Text>📅 Rent Start: {r.startDate}</Text>
-                  <Text>📆 Next Due: {r.nextRentDueDate || "Not Set"}</Text>
-                  <Text>💵 Monthly Rent: ₹{r.monthlyRent}</Text>
-                  <Text>⏳ Pending: ₹{r.pending || 0}</Text>
-                  <TouchableOpacity onPress={() => handleMarkReturned(r)} style={{ backgroundColor: "orange", padding: 8, borderRadius: 6, marginTop: 8 }}><Text style={{ color: "white", textAlign: "center" }}>Mark Returned 🔄</Text></TouchableOpacity>
-              </View>
-              ))
-          ) : (<Text style={{ color: "gray" }}>No active rentals.</Text>)}
+         <Text style={{ fontWeight: "bold", fontSize: 18, marginBottom: 8 }}>
+  Active Rentals
+</Text>
+
+{client.activeRentals?.filter(Boolean).length ? (
+  client.activeRentals
+    .filter(Boolean) // remove undefined/null
+    .map((r, index) => (
+      <View
+        key={r.trolleyNo ? `r-${r.trolleyNo}` : `r-${index}`} // always unique
+        style={{
+          backgroundColor: "#f9fafb",
+          padding: 10,
+          borderRadius: 8,
+          marginBottom: 10,
+          borderLeftWidth: 5,
+          borderLeftColor: "orange",
+        }}
+      >
+        <Text style={{ fontWeight: "bold" }}>🛒 Trolley: {r.trolleyNo || "-"}</Text>
+        <Text>📅 Rent Start: {r.startDate || "-"}</Text>
+        <Text>📆 Next Due: {r.nextRentDueDate || "Not Set"}</Text>
+        <Text>💵 Monthly Rent: ₹{r.monthlyRent || 0}</Text>
+        <Text>⏳ Pending: ₹{r.pending || 0}</Text>
+
+        <TouchableOpacity
+          onPress={() => handleMarkReturned(r)}
+          style={{ backgroundColor: "orange", padding: 8, borderRadius: 6, marginTop: 8 }}
+        >
+          <Text style={{ color: "white", textAlign: "center" }}>
+            Mark Returned 🔄
+          </Text>
+        </TouchableOpacity>
+      </View>
+    ))
+) : (
+  <Text style={{ color: "gray" }}>No active rentals.</Text>
+)}
+
           
           <View style={{ backgroundColor: "#fee2e2", padding: 12, borderRadius: 8, marginBottom: 16 }}>
               <Text style={{ fontWeight: "bold", fontSize: 18 }}>Financial Summary</Text>
