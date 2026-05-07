@@ -36,6 +36,7 @@ export default function AddPaymentModal({
   const [notes, setNotes] = useState("");
   const [date, setDate] = useState(formatDate(new Date()));
   const [showPicker, setShowPicker] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   /* Load values when editing */
   useEffect(() => {
@@ -48,17 +49,25 @@ export default function AddPaymentModal({
       setNotes("");
       setDate(formatDate(new Date()));
     }
+    setIsSaving(false);
   }, [paymentToEdit, visible]);
 
-  const handleSave = () => {
-    if (!amount) return;
+  const handleSave = async () => {
+    if (!amount || isSaving) return;
 
-    onSave({
-      id: paymentToEdit?.id,
-      amount: Number(amount),
-      notes,
-      date, // <-- IMPORTANT
-    });
+    setIsSaving(true);
+    try {
+      await onSave({
+        id: paymentToEdit?.id,
+        amount: Number(amount),
+        notes,
+        date, // <-- IMPORTANT
+      });
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const onDateChange = (event, selected) => {
@@ -108,14 +117,18 @@ export default function AddPaymentModal({
             multiline
           />
 
-          <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
+          <TouchableOpacity 
+            style={[styles.saveButton, isSaving && { opacity: 0.7 }]} 
+            onPress={handleSave}
+            disabled={isSaving}
+          >
             <Text style={styles.saveButtonText}>
-              {paymentToEdit ? "Save Changes" : "Add Payment"}
+              {isSaving ? "Saving..." : (paymentToEdit ? "Save Changes" : "Add Payment")}
             </Text>
           </TouchableOpacity>
 
-          <TouchableOpacity onPress={onClose}>
-            <Text style={styles.cancelText}>Cancel</Text>
+          <TouchableOpacity onPress={onClose} disabled={isSaving}>
+            <Text style={[styles.cancelText, isSaving && { color: "gray" }]}>Cancel</Text>
           </TouchableOpacity>
         </View>
       </View>

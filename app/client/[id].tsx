@@ -8,6 +8,7 @@ import {
   ScrollView,
   Platform,
   StyleSheet,
+  ActivityIndicator,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
@@ -23,6 +24,7 @@ import { useClients } from "../../store/ClientsStore";
 import { usePayments } from "../../store/PaymentsStore";
 import { useTrolleys } from "../../store/TrolleyStore";
 import AddPaymentModal from "../../components/AddPaymentModal";
+import ManageRentCyclesModal from "../../components/ManageRentCyclesModal";
 
 // Imports for Filtering and PDF
 import DateTimePicker from "@react-native-community/datetimepicker";
@@ -59,13 +61,14 @@ const parseDateForPicker = (dateString) => {
 export default function ClientDetailsScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
-  const { clients, setClients, updateClient } = useClients();
+  const { clients, setClients, updateClient, syncClientRent } = useClients();
   const { addPayment, updatePayment, deletePayment } = usePayments();
   const { markReturned } = useTrolleys();
 
   const client = clients.find((c) => c.id === id);
   const [payments, setPayments] = useState([]);
   const [modalVisible, setModalVisible] = useState(false);
+  const [isRefreshingSummary, setIsRefreshingSummary] = useState(false);
 
   const [paymentToEdit, setPaymentToEdit] = useState(null);
   const [filterStartDate, setFilterStartDate] = useState(null);
@@ -73,13 +76,39 @@ export default function ClientDetailsScreen() {
   const [showPicker, setShowPicker] = useState(false);
   const [isPickingStart, setIsPickingStart] = useState(false);
 
-  const formatDate = (date) => {
-    const d = new Date(date);
-    const day = String(d.getDate()).padStart(2, "0");
-    const month = String(d.getMonth() + 1).padStart(2, "0");
-    const year = d.getFullYear();
-    return `${day}-${month}-${year}`;
+  const [manageRentCycleModalVisible, setManageRentCycleModalVisible] = useState(false);
+  const [selectedRentalForRentCycle, setSelectedRentalForRentCycle] = useState(null);
+
+  useEffect(() => {
+    if (id) {
+      handleSyncRent();
+    }
+  }, [id]);
+
+  const handleSyncRent = async () => {
+    setIsRefreshingSummary(true);
+    try {
+      await syncClientRent(id);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsRefreshingSummary(false);
+    }
   };
+
+  const handleOpenRentCycleModal = (rental) => {
+    setSelectedRentalForRentCycle(rental);
+    setManageRentCycleModalVisible(true);
+  };
+
+  const handleCloseRentCycleModal = () => {
+    setManageRentCycleModalVisible(false);
+    setSelectedRentalForRentCycle(null);
+  };
+
+  const freshSelectedRental = selectedRentalForRentCycle 
+    ? client?.activeRentals?.find(r => r.trolleyNo === selectedRentalForRentCycle.trolleyNo) || selectedRentalForRentCycle 
+    : null;
 
   // --- Utility Refs ---
   const getPaymentsColRef = () =>
@@ -605,6 +634,20 @@ export default function ClientDetailsScreen() {
                     Mark Returned 🔄
                   </Text>
                 </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={() => handleOpenRentCycleModal(r)}
+                  style={{
+                    backgroundColor: "#3b82f6",
+                    padding: 8,
+                    borderRadius: 6,
+                    marginTop: 8,
+                  }}
+                >
+                  <Text style={{ color: "white", textAlign: "center" }}>
+                    View & Edit Rent Cycles 📆
+                  </Text>
+                </TouchableOpacity>
               </View>
             ))
         ) : (
@@ -619,9 +662,18 @@ export default function ClientDetailsScreen() {
             marginBottom: 16,
           }}
         >
-          <Text style={{ fontWeight: "bold", fontSize: 18 }}>
-            Financial Summary
-          </Text>
+          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+            <Text style={{ fontWeight: "bold", fontSize: 18 }}>
+              Financial Summary
+            </Text>
+            {isRefreshingSummary ? (
+              <ActivityIndicator size="small" color="#000" />
+            ) : (
+              <TouchableOpacity onPress={handleSyncRent}>
+                <Ionicons name="refresh-circle" size={26} color="#007AFF" />
+              </TouchableOpacity>
+            )}
+          </View>
 
           <Text style={{ color: "red", fontSize: 16 }}>
             Pending Total: ₹{client.pendingAmount || 0}
@@ -731,6 +783,13 @@ export default function ClientDetailsScreen() {
         onSave={handleSavePayment}
         paymentToEdit={paymentToEdit}
         clientId={id}
+      />
+
+      <ManageRentCyclesModal
+        visible={manageRentCycleModalVisible}
+        onClose={handleCloseRentCycleModal}
+        client={client}
+        rental={freshSelectedRental}
       />
     </View>
   );

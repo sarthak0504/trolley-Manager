@@ -38,6 +38,24 @@ const formatDDMMYYYY = (date) => {
   return `${day}-${month}-${year}`;
 };
 
+const getRentForCycle = (cycleDateStr, rentHistory, fallbackRent) => {
+  if (!rentHistory || !rentHistory.length) return Number(fallbackRent);
+  const cycleDate = parseDDMMYYYY(cycleDateStr);
+  
+  // Sort history ascending by date
+  const sortedHistory = [...rentHistory].sort((a, b) => 
+    parseDDMMYYYY(a.effectiveDate).getTime() - parseDDMMYYYY(b.effectiveDate).getTime()
+  );
+  
+  let currentRent = Number(fallbackRent);
+  for (const hist of sortedHistory) {
+    if (parseDDMMYYYY(hist.effectiveDate).getTime() <= cycleDate.getTime()) {
+      currentRent = Number(hist.amount);
+    }
+  }
+  return currentRent;
+};
+
 const checkAndMarkRunToday = async (userId) => {
   const today = formatDDMMYYYY(new Date());
   const key = `lastRentUpdate_${userId}`;
@@ -80,135 +98,114 @@ export function ClientsProvider({ children, userId }) {
 
   /* 🧮 Auto Rent Update (runs once per day) — month-by-month processing */
 /* 🧮 Auto Rent Update (runs once per day) — clean final version */
+  const syncClientRent = async (clientId) => {
+    if (!userId || !clients.length) return;
+    const client = clients.find(c => c.id === clientId);
+    if (!client || !client.activeRentals?.length) return;
+
+    let rentals = [...client.activeRentals];
+    let changed = false;
+    let advanceBalance =
+      client.advance !== undefined && client.advance !== null
+        ? Number(client.advance)
+        : Number(client.initialAdvance || 0);
+
+    const paymentsRef = collection(
+      db,
+      `users/${userId}/clients/${client.id}/payments`
+    );
+
+    rentals = await Promise.all(
+      rentals.map(async (rental) => {
+        const today = new Date();
+        const todayStr = formatDDMMYYYY(today);
+        let dueDate = rental.nextRentDueDate
+          ? parseDDMMYYYY(rental.nextRentDueDate)
+          : null;
+
+        if (!dueDate || isNaN(dueDate.getTime())) {
+          const start = parseDDMMYYYY(rental.startDate);
+          const firstDue = addDays(start, 30);
+          return {
+            ...rental,
+            nextRentDueDate: formatDDMMYYYY(firstDue),
+            lastRentAddedOn: formatDDMMYYYY(start),
+          };
+        }
+
+        if (rental.lastRentAddedOn === todayStr) return rental;
+
+        const todayClean = parseDDMMYYYY(todayStr);
+        if (dueDate.getTime() > todayClean.getTime()) return rental;
+
+        const diffDays = Math.floor(
+          (today.getTime() - dueDate.getTime()) / (1000 * 86400)
+        );
+        const cyclesMissed = Math.max(Math.floor(diffDays / 30) + 1, 1);
+
+        let pending = Number(rental.pending || 0);
+        let nextDue = dueDate;
+
+        for (let i = 0; i < cyclesMissed; i++) {
+          changed = true;
+          const cycleRent = getRentForCycle(formatDDMMYYYY(nextDue), rental.rentHistory, rental.monthlyRent);
+          const rent = Number(cycleRent);
+
+          await addDoc(paymentsRef, {
+            amount: rent,
+            date: formatDDMMYYYY(nextDue),
+            type: "rent_auto",
+            notes: `Auto rent added for cycle ${i + 1}`,
+          });
+
+          if (advanceBalance >= rent) {
+              advanceBalance -= rent;
+          } else {
+              pending += (rent - advanceBalance);
+              advanceBalance = 0;
+          }
+
+          if (pending < 0) {
+              advanceBalance = Math.abs(pending);
+              pending = 0;
+          }
+          nextDue = addDays(nextDue, 30);
+        }
+
+        return {
+          ...rental,
+          pending,
+          nextRentDueDate: formatDDMMYYYY(nextDue),
+          lastRentAddedOn: todayStr,
+        };
+      })
+    );
+
+    if (changed) {
+      const activePending = rentals.reduce((s, r) => s + Number(r.pending || 0), 0);
+      const pastPending = (client.pastRentals || []).reduce((s, r) => s + Number(r.pending || 0), 0);
+      const totalPending = activePending + pastPending;
+
+      await updateDoc(
+        doc(db, userCollectionPath(userId, "clients"), client.id),
+        {
+          activeRentals: rentals,
+          pendingAmount: totalPending,
+          advance: advanceBalance,
+        }
+      );
+    }
+  };
+
 useEffect(() => {
   if (!userId || !clients.length) return;
 
+
+
   const updateMonthlyRent = async () => {
-    console.log("🏁 Running monthly rent update...");
-
+    console.log("🏁 Running global monthly rent update...");
     for (const client of clients) {
-      if (!client?.id || !client.activeRentals?.length) continue;
-
-      let rentals = [...client.activeRentals];
-      let changed = false;
-
-      // remaining advance balance
-      let advanceBalance =
-        client.advance !== undefined && client.advance !== null
-          ? Number(client.advance)
-          : Number(client.initialAdvance || 0);
-
-      const paymentsRef = collection(
-        db,
-        `users/${userId}/clients/${client.id}/payments`
-      );
-
-      rentals = await Promise.all(
-        rentals.map(async (rental) => {
-          const today = new Date();
-          const todayStr = formatDDMMYYYY(today);
-
-          let dueDate = rental.nextRentDueDate
-            ? parseDDMMYYYY(rental.nextRentDueDate)
-            : null;
-
-          if (!dueDate || isNaN(dueDate.getTime())) {
-            const start = parseDDMMYYYY(rental.startDate);
-            const firstDue = addDays(start, 30);
-
-            return {
-              ...rental,
-              nextRentDueDate: formatDDMMYYYY(firstDue),
-              lastRentAddedOn: formatDDMMYYYY(start),
-            };
-          }
-
-          if (rental.lastRentAddedOn === todayStr) return rental;
-
-          const todayClean = parseDDMMYYYY(todayStr);
-          if (dueDate.getTime() > todayClean.getTime()) return rental;
-
-          const diffDays = Math.floor(
-            (today.getTime() - dueDate.getTime()) / (1000 * 86400)
-          );
-          const cyclesMissed = Math.max(Math.floor(diffDays / 30) + 1, 1);
-
-          let pending = Number(rental.pending || 0);
-          let nextDue = dueDate;
-
-       for (let i = 0; i < cyclesMissed; i++) {
-  changed = true;
-  const rent = Number(rental.monthlyRent);
-
-  // 1) Always log rent_auto
-  await addDoc(paymentsRef, {
-    amount: rent,
-    date: formatDDMMYYYY(nextDue),
-    type: "rent_auto",
-    notes: `Auto rent added for cycle ${i + 1}`,
-  });
-
-  // 2) Add rent to pending
-// 2) Apply prepaid logic
-if (advanceBalance >= rent) {
-    // advance fully covers rent
-    advanceBalance -= rent;
-    // pending unchanged
-} else {
-    // advance partially covers rent
-    pending += (rent - advanceBalance);
-    advanceBalance = 0;
-}
-
-// 3) Safety: pending should never go negative
-if (pending < 0) {
-    advanceBalance = Math.abs(pending);
-    pending = 0;
-}
-
-
-  nextDue = addDays(nextDue, 30);
-}
-
-
-
-          return {
-            ...rental,
-            pending,
-            nextRentDueDate: formatDDMMYYYY(nextDue),
-            lastRentAddedOn: todayStr,
-          };
-        })
-      );
-
-      if (changed) {
-        const totalPending = rentals.reduce(
-          (s, r) => s + Number(r.pending || 0),
-          0
-        );
-
-        await updateDoc(
-          doc(db, userCollectionPath(userId, "clients"), client.id),
-          {
-            activeRentals: rentals,
-            pendingAmount: totalPending,
-            advance: advanceBalance,
-          }
-        );
-
-        setClients((prev) =>
-          prev.map((c) =>
-            c.id === client.id
-              ? {
-                  ...c,
-                  activeRentals: rentals,
-                  pendingAmount: totalPending,
-                  advance: advanceBalance,
-                }
-              : c
-          )
-        );
-      }
+      await syncClientRent(client.id);
     }
   };
 
@@ -263,6 +260,7 @@ async function addClient(client) {
     pending,
     nextRentDueDate: formatDDMMYYYY(nextDueDate),
     lastRentAddedOn: formatDDMMYYYY(start),
+    rentHistory: [{ effectiveDate: formatDDMMYYYY(start), amount: rent }],
   };
 
   const newClient = {
@@ -346,40 +344,14 @@ async function updateClient(id, newDetails) {
 
     const startDateChanged =
       newRental && oldRental.startDate !== newRental.startDate;
-    const rentChanged =
-      newRental &&
-      Number(oldRental.monthlyRent) !== Number(newRental.monthlyRent);
 
-    if (newRental && (startDateChanged || rentChanged)) {
-      const newStart = parseDDMMYYYY(newRental.startDate);
-      const newRent = Number(newRental.monthlyRent);
-      const today = new Date();
-
-      const diffDays = Math.floor((today - newStart) / (1000 * 86400));
-      const cyclesPassed = Math.max(Math.floor(diffDays / 30), 0);
-
-      const totalRentLiability = newRent * (cyclesPassed + 1);
-      const totalPayments = oldClient.totalPaidAmount || 0;
-      const initialAdvance = oldClient.initialAdvance || 0;
-
-      let remaining = totalPayments + initialAdvance - totalRentLiability;
-      let newPending = remaining >= 0 ? 0 : Math.abs(remaining);
-      let newAdvance = remaining >= 0 ? remaining : 0;
-
-      const nextDue = addDays(newStart, 30 * (cyclesPassed + 1));
-
-      finalUpdateData.activeRentals = [
-        {
-          ...oldRental,
-          ...newRental,
-          pending: newPending,
-          nextRentDueDate: formatDDMMYYYY(nextDue),
-        }
-      ];
-
-      finalUpdateData.pendingAmount = newPending;
-      finalUpdateData.advance = newAdvance;
-      finalUpdateData.initialAdvance = initialAdvance;
+    if (newRental && startDateChanged) {
+       finalUpdateData.activeRentals = [
+         {
+           ...oldRental,
+           ...newRental
+         }
+       ];
     }
 
     Object.keys(finalUpdateData).forEach((k) => {
@@ -436,9 +408,116 @@ async function updateClient(id, newDetails) {
     }
   }
 
+  // 🆕 RECALCULATE ENTIRE RENT HISTORY FOR A RENTAL
+  async function editRentHistoryForCycle(clientId, trolleyNo, targetCycleDateStr, newRentAmount) {
+    if (!userId || !clientId || !trolleyNo) return;
+    
+    try {
+      const clientRef = getClientRef(clientId);
+      const snap = await getDoc(clientRef);
+      const clientData = snap.data();
+      if (!clientData) return;
+
+      const rentalIndex = clientData.activeRentals?.findIndex(r => r.trolleyNo === trolleyNo);
+      if (rentalIndex === -1 || rentalIndex === undefined) return;
+
+      const rental = clientData.activeRentals[rentalIndex];
+      const oldHistory = JSON.parse(JSON.stringify(rental.rentHistory || [{ effectiveDate: rental.startDate, amount: rental.monthlyRent }]));
+      let updatedHistory = JSON.parse(JSON.stringify(oldHistory));
+      
+      const existingEntryIndex = updatedHistory.findIndex(h => h.effectiveDate === targetCycleDateStr);
+      if (existingEntryIndex >= 0) {
+        updatedHistory[existingEntryIndex].amount = newRentAmount;
+      } else {
+        updatedHistory.push({ effectiveDate: targetCycleDateStr, amount: newRentAmount });
+      }
+
+      // Sort just in case
+      updatedHistory.sort((a, b) => parseDDMMYYYY(a.effectiveDate).getTime() - parseDDMMYYYY(b.effectiveDate).getTime());
+      clientData.activeRentals[rentalIndex].rentHistory = updatedHistory;
+
+      // Now we must re-calculate ALL cycles from startDate to the exact cycle limit
+      let lastDateStr = rental.nextRentDueDate || rental.lastRentAddedOn;
+      if (!lastDateStr) lastDateStr = formatDDMMYYYY(addDays(parseDDMMYYYY(rental.startDate), 30));
+      
+      const start = parseDDMMYYYY(rental.startDate);
+      const end = parseDDMMYYYY(lastDateStr);
+      let iterDate = start; // Include the starting month cycle
+      
+      let oldLiability = 0;
+      let newLiability = 0;
+      
+      // Let's gather all cycles and update rent_auto documents cosmetically
+      const paymentsRef = collection(db, `users/${userId}/clients/${clientId}/payments`);
+      const paymentsSnap = await getDocs(paymentsRef);
+      const paymentsLocalList = paymentsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+      while (iterDate.getTime() < end.getTime()) {
+          const cycleStr = formatDDMMYYYY(iterDate);
+          
+          const correctNewRent = getRentForCycle(cycleStr, updatedHistory, rental.monthlyRent);
+          const correctOldRent = getRentForCycle(cycleStr, oldHistory, rental.monthlyRent);
+          
+          newLiability += correctNewRent;
+          oldLiability += correctOldRent;
+
+          // Find the rent_auto payment for this cycle and optionally update its amount in DB purely for visual sync
+          const autoRentDoc = paymentsLocalList.find(p => p.type === "rent_auto" && p.date === cycleStr);
+          if (autoRentDoc && autoRentDoc.amount !== correctNewRent) {
+             const docRef = doc(db, `users/${userId}/clients/${clientId}/payments`, autoRentDoc.id);
+             await updateDoc(docRef, { amount: correctNewRent, notes: `Auto rent updated for cycle (${cycleStr})` });
+          }
+
+          iterDate = addDays(iterDate, 30);
+        }
+
+        const exactLiabilityDifference = newLiability - oldLiability;
+        let currentAdvance = Number(clientData.advance || 0);
+        let currentPending = Number(clientData.pendingAmount || 0);
+
+        if (exactLiabilityDifference > 0) {
+           // Rent increased, charge more
+           if (currentAdvance >= exactLiabilityDifference) {
+              currentAdvance -= exactLiabilityDifference;
+           } else {
+              currentPending += (exactLiabilityDifference - currentAdvance);
+              currentAdvance = 0;
+           }
+        } else if (exactLiabilityDifference < 0) {
+           // Rent decreased, give credit back
+           const credit = Math.abs(exactLiabilityDifference);
+           if (currentPending >= credit) {
+              currentPending -= credit;
+           } else {
+              currentAdvance += (credit - currentPending);
+              currentPending = 0;
+           }
+        }
+
+        clientData.advance = currentAdvance;
+        clientData.pendingAmount = currentPending;
+
+        // Keep local rental pending approximation synced
+        let localPending = Number(clientData.activeRentals[rentalIndex].pending || 0);
+        localPending += exactLiabilityDifference;
+        if (localPending < 0) localPending = 0;
+        clientData.activeRentals[rentalIndex].pending = localPending;
+
+        await updateDoc(clientRef, {
+           activeRentals: clientData.activeRentals,
+           advance: clientData.advance,
+           pendingAmount: clientData.pendingAmount
+        });
+
+      // Block complete, data saved!
+    } catch (e) {
+      console.error("Recalculate error:", e);
+    }
+  }
+
   return (
     <ClientsContext.Provider
-      value={{ clients, addClient, updateClient, deleteClient, setClients }}
+      value={{ clients, addClient, updateClient, deleteClient, editRentHistoryForCycle, syncClientRent, setClients }}
     >
       {children}
     </ClientsContext.Provider>

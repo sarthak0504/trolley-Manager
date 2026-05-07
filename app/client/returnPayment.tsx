@@ -128,10 +128,11 @@ function calculateDays(start, end) {
           currentMonthPending,
           adjustPayment,
           finalPending,
+          pending: finalPending,
         },
       ];
       const newTotalPending =
-        finalPending + newActive.reduce((sum, r) => sum + (r.pending || 0), 0);
+        finalPending + newActive.reduce((sum, r) => sum + (r.pending || 0), 0) + pastRentals.reduce((sum, r) => sum + (Number(r.pending) || 0), 0);
 
       await updateDoc(clientRef, {
         activeRentals: newActive,
