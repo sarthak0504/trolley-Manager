@@ -39,6 +39,8 @@ export const trolleyService = {
       history: [
         ...(trolley.history || []),
         {
+          action: 'assigned',
+          date: new Date().toLocaleDateString(),
           clientId,
           clientName,
           fromDate: new Date().toLocaleDateString(),
