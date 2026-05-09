@@ -22,9 +22,12 @@ app.use('/api/expenses', expenseRoutes);
 
 app.use(errorMiddleware);
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
-});
-
 export default app;
+
+// Only start the HTTP server when running locally (not on Vercel)
+if (!process.env.VERCEL) {
+  const PORT = process.env.PORT || 3000;
+  app.listen(PORT, () => {
+    console.log(`Server running on http://localhost:${PORT}`);
+  });
+}
