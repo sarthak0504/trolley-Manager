@@ -1,50 +1,178 @@
-# Welcome to your Expo app 👋
+# Trolley App
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+A trolley rental management system — monorepo with a React Native mobile client, an Express REST API server, and shared TypeScript types.
 
-## Get started
+---
 
-1. Install dependencies
+## Project Structure
 
-   ```bash
-   npm install
-   ```
-
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
-```bash
-npm run reset-project
+```
+trolley-app/
+├── client/          # React Native (Expo) mobile app
+├── server/          # Express.js REST API
+├── shared/          # Shared TypeScript types (@trolley/shared)
+└── package.json     # npm workspaces root
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+### `client/` — React Native App
 
-## Learn more
+Built with Expo and Expo Router (file-based routing).
 
-To learn more about developing your project with Expo, look at the following resources:
+```
+client/
+├── app/             # Screens (Expo Router)
+│   ├── (tabs)/      # Tab navigator: Clients, Expenses, Trolleys, Pendings, P&L
+│   ├── client/      # Client detail + return payment screens
+│   └── trolleys/    # Trolley detail + rent-to-client screens
+├── src/
+│   ├── api/         # Axios wrappers calling the Express server
+│   ├── store/       # React Context providers (reads via Firestore onSnapshot, writes via API)
+│   └── components/  # Reusable UI components and modals
+└── config/
+    └── firebaseConfig.js   # Firebase Client SDK (auth + real-time reads)
+```
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+### `server/` — Express REST API
 
-## Join the community
+All business logic and Firebase writes go through here.
 
-Join our community of developers creating universal apps.
+```
+server/src/
+├── app.ts           # Express entry point
+├── config/
+│   └── firebase.ts  # Firebase Admin SDK initialisation
+├── pipeline/
+│   ├── pipeline.ts          # execute({ validate, run }) — the request pipeline
+│   ├── middleware/
+│   │   ├── auth.middleware.ts   # Verifies Firebase ID token
+│   │   └── error.middleware.ts  # Global error handler
+│   └── validators/          # Per-entity input validation
+├── repositories/    # Firebase Admin CRUD — no business logic
+├── services/        # All business logic (rent cycles, FIFO payments, etc.)
+└── routes/          # Thin Express route handlers
+```
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+**Request flow:**
+```
+Client (axios) → Route → pipeline.execute() → validate → Service → Repository → Firestore
+                                                              ↑
+                                           Real-time reads stay on onSnapshot (client-side)
+```
+
+### `shared/` — Shared Types
+
+TypeScript interfaces imported by both `client` and `server`.
+
+```
+shared/src/types/
+├── client.types.ts   # Client, ActiveRental, PastRental, RentHistory
+├── trolley.types.ts  # Trolley, TrolleyHistory
+├── payment.types.ts  # Payment, PaymentType
+└── expense.types.ts  # Expense
+```
+
+---
+
+## Getting Started
+
+### Prerequisites
+
+- Node.js 18+
+- npm 10+ (workspaces support)
+- Firebase project with Firestore enabled
+- Firebase service account key (for the server)
+
+### 1. Install all dependencies
+
+```bash
+npm install
+```
+
+### 2. Configure the server
+
+Copy the example env file and fill in your Firebase Admin credentials (download from Firebase Console → Project Settings → Service accounts → Generate new private key):
+
+```bash
+cp server/.env.example server/.env
+```
+
+```env
+PORT=3000
+FIREBASE_PROJECT_ID=your-project-id
+FIREBASE_CLIENT_EMAIL=firebase-adminsdk-xxx@your-project.iam.gserviceaccount.com
+FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
+```
+
+### 3. Configure the client
+
+Set the server URL in `client/.env`:
+
+```env
+EXPO_PUBLIC_SERVER_URL=http://localhost:3000
+```
+
+For a physical device replace `localhost` with your machine's local IP (e.g. `http://192.168.1.10:3000`).
+
+### 4. Run
+
+Start the server:
+
+```bash
+npm run server
+```
+
+Start the mobile app (in a separate terminal):
+
+```bash
+npm run client
+```
+
+---
+
+## API Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/clients` | Add client |
+| PUT | `/api/clients/:id` | Update client |
+| DELETE | `/api/clients/:id` | Delete client |
+| POST | `/api/clients/:id/sync-rent` | Sync monthly rent |
+| POST | `/api/clients/:id/rent-history` | Edit rent cycle amount |
+| POST | `/api/trolleys` | Add trolley |
+| PATCH | `/api/trolleys/:id/toggle` | Toggle availability |
+| PATCH | `/api/trolleys/:id/assign` | Assign to client |
+| PATCH | `/api/trolleys/:id/return` | Mark returned |
+| PATCH | `/api/trolleys/history/:clientId` | Sync trolley history |
+| POST | `/api/clients/:clientId/payments` | Record payment |
+| PUT | `/api/clients/:clientId/payments/:id` | Edit payment |
+| DELETE | `/api/clients/:clientId/payments/:id` | Delete payment |
+| POST | `/api/expenses` | Add expense |
+| PUT | `/api/expenses/:id` | Update expense |
+| DELETE | `/api/expenses/:id` | Delete expense |
+
+All endpoints require a Firebase ID token in the `Authorization: Bearer <token>` header.
+
+---
+
+## Adding a Web Client (Future)
+
+The monorepo is structured to support a web app alongside the mobile client:
+
+```bash
+# Add a new web package
+mkdir client-web
+# client-web calls the same server/ API and imports types from shared/
+```
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Mobile | React Native, Expo, Expo Router |
+| Server | Express.js, TypeScript, Node.js |
+| Database | Firebase Firestore |
+| Auth | Firebase Authentication |
+| State | React Context API |
+| Types | TypeScript (shared package) |
