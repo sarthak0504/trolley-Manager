@@ -15,6 +15,8 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+app.get('/', (_, res) => res.json({ status: 'ok', message: 'Trolley server is running' }));
+
 app.use('/api/clients', clientRoutes);
 app.use('/api/trolleys', trolleyRoutes);
 app.use('/api/clients/:clientId/payments', paymentRoutes);
