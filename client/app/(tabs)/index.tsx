@@ -12,9 +12,9 @@ import {
 import { Link } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 
-import AddClientModal from "../../src/components/AddClientModal";
-import { useClients } from "../../src/store/ClientsStore";
-import { useTrolleys } from "../../src/store/TrolleyStore";
+import AddClientModal from "@/src/components/AddClientModal";
+import { useClients } from "@/src/store/ClientsStore";
+import { useTrolleys } from "@/src/store/TrolleyStore";
 
 export default function ClientsScreen() {
   const { assignTrolley } = useTrolleys();

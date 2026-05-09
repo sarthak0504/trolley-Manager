@@ -1,7 +1,7 @@
 import React from "react";
-import { useTrolleys } from "../store/TrolleyStore";
-import { useClients } from "../store/ClientsStore";
-import { useExpenses } from "../store/ExpensesStore";
+import { useTrolleys } from "@/src/store/TrolleyStore";
+import { useClients } from "@/src/store/ClientsStore";
+import { useExpenses } from "@/src/store/ExpensesStore";
 import LoadingScreen from "./LoadingScreen";
 
 interface Props {

@@ -2,11 +2,11 @@ import React, { useState } from "react";
 import { View, Text, TextInput, Button, ScrollView } from "react-native";
 import { Picker } from "@react-native-picker/picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useClients } from "../../src/store/ClientsStore";
-import { useTrolleys } from "../../src/store/TrolleyStore";
-import { db } from "../../config/firebaseConfig";
+import { useClients } from "@/src/store/ClientsStore";
+import { useTrolleys } from "@/src/store/TrolleyStore";
+import { db } from "@/config/firebaseConfig";
 import { updateDoc, doc } from "firebase/firestore";
-import { userCollectionPath } from "../../config/firestorePaths";
+import { userCollectionPath } from "@/config/firestorePaths";
 
 export default function RentToClientScreen() {
   const { id } = useLocalSearchParams(); // client firestore ID

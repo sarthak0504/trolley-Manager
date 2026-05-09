@@ -15,9 +15,9 @@ import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
 
 // Assuming useExpenses now includes deleteExpense and updateExpense
-import { useExpenses } from "../../../src/store/ExpensesStore";
-import { useClients } from "../../../src/store/ClientsStore";
-import AddExpenseModal from "../../../src/components/AddExpenseModal";
+import { useExpenses } from "@/src/store/ExpensesStore";
+import { useClients } from "@/src/store/ClientsStore";
+import AddExpenseModal from "@/src/components/AddExpenseModal";
 
 export default function ExpensesScreen() {
   // Assume deleteExpense and updateExpense are available from your store

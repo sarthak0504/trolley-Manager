@@ -12,7 +12,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useAuth } from "../../src/context/AuthContext";
+import { useAuth } from "@/src/context/AuthContext";
 
 function isValidEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -111,7 +111,7 @@ export default function LoginScreen() {
     >
       <View style={styles.card}>
         <Image
-          source={require("../../assets/images/logo.png")}
+          source={require("@/assets/images/logo.jpg")}
           style={styles.logo}
           resizeMode="contain"
         />

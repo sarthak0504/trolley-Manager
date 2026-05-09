@@ -2,13 +2,13 @@ import { Slot, useRouter, useSegments } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useEffect } from "react";
 
-import { AuthProvider, useAuth } from "../src/context/AuthContext";
-import { TrolleyProvider } from "../src/store/TrolleyStore";
-import { ClientsProvider } from "../src/store/ClientsStore";
-import { PaymentsProvider } from "../src/store/PaymentsStore";
-import { ExpensesProvider } from "../src/store/ExpensesStore";
-import LoadingScreen from "../src/components/LoadingScreen";
-import DataReadyGate from "../src/components/DataReadyGate";
+import { AuthProvider, useAuth } from "@/src/context/AuthContext";
+import { TrolleyProvider } from "@/src/store/TrolleyStore";
+import { ClientsProvider } from "@/src/store/ClientsStore";
+import { PaymentsProvider } from "@/src/store/PaymentsStore";
+import { ExpensesProvider } from "@/src/store/ExpensesStore";
+import LoadingScreen from "@/src/components/LoadingScreen";
+import DataReadyGate from "@/src/components/DataReadyGate";
 
 function AppGate() {
   const { user, userId, loading } = useAuth();

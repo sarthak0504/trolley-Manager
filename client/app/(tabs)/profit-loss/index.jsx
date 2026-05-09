@@ -12,9 +12,9 @@ import {
 } from "react-native";
 
 import { collection, getDocs } from "firebase/firestore";
-import { db } from "../../../config/firebaseConfig";
-import { userCollectionPath } from "../../../config/firestorePaths";
-import { useClients } from "../../../src/store/ClientsStore";
+import { db } from "@/config/firebaseConfig";
+import { userCollectionPath } from "@/config/firestorePaths";
+import { useClients } from "@/src/store/ClientsStore";
 
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { Ionicons } from "@expo/vector-icons";

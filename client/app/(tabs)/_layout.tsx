@@ -7,7 +7,7 @@ function HeaderRight() {
   const { user, signOut } = useAuth();
 
   const username =
-    user?.displayName || user?.email?.split("@")[0] || "User";
+    user?.displayName || user?.email?.split("/")[0] || "User";
 
   function handleSignOut() {
     if (Platform.OS === "web") {
